@@ -1,6 +1,8 @@
+require("dotenv").config();
 const express = require("express");
 const router = express.Router();
 const { ObjectId } = require("mongodb");
+
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 // ==========================================
@@ -60,6 +62,9 @@ router.post("/create-checkout-session", async (req, res) => {
 // POST /api/payments/confirm-session (Assignment Requirement)
 // Double-checks transaction before database saves
 // ==========================================
+// ==========================================
+// POST /api/payments/confirm-session (Assignment Requirement)
+// ==========================================
 router.post("/confirm-session", async (req, res) => {
   try {
     const { session_id, task_id, proposal_id } = req.body;
@@ -71,6 +76,12 @@ router.post("/confirm-session", async (req, res) => {
       const tasksCollection = global.db.collection("tasks");
       const proposalsCollection = global.db.collection("proposals");
       const paymentsCollection = global.db.collection("payments");
+
+      // 🚨 FIX: Fetch the task from MongoDB to get the title safely
+      const task = await tasksCollection.findOne({
+        _id: new ObjectId(task_id),
+      });
+      const task_title = task ? task.title : "Micro-Task";
 
       // 2. Update Task status to "in_progress"
       await tasksCollection.updateOne(
@@ -86,8 +97,10 @@ router.post("/confirm-session", async (req, res) => {
 
       // 4. Save to Payments Collection (Matches Assignment DB Architecture)
       await paymentsCollection.insertOne({
-        client_email: session.metadata.client_email,
-        freelancer_email: session.metadata.freelancer_email,
+        client_email:
+          session.metadata?.client_email ||
+          (task ? task.client_email : "unknown"),
+        freelancer_email: session.metadata?.freelancer_email || "unknown",
         task_id: task_id,
         amount: session.amount_total / 100, // Convert cents back to dollars
         transaction_id: session.payment_intent,
@@ -98,7 +111,7 @@ router.post("/confirm-session", async (req, res) => {
       return res.json({
         success: true,
         message: "Payment confirmed and database updated.",
-        task_title: session.line_items.data[0]?.description || "Task",
+        task_title: task_title, // 🚨 Now safely returns the title from MongoDB!
       });
     }
 

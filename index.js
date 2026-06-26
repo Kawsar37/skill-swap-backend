@@ -1,15 +1,15 @@
 const dns = require("node:dns");
 dns.setServers(["1.1.1.1", "1.0.0.1"]);
 
+require("dotenv").config();
+
 const taskRoutes = require("./routes/taskRoutes");
 const proposalRoutes = require("./routes/proposalRoutes");
-const paymentRoutes = require("./routes/paymentRoutes"); and app.use("/api/payments", paymentRoutes);
+const paymentRoutes = require("./routes/paymentRoutes");
 
 const express = require("express");
-const dontenv = require("dotenv");
 const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
-dontenv.config();
 
 const uri = process.env.MONGODB_URI;
 
@@ -19,7 +19,7 @@ const PORT = process.env.PORT;
 app.use(
   cors({
     credentials: true,
-    origin: [process.env.CLIENT_URL],
+    origin: [process.env.FRONTEND_URL],
   }),
 );
 app.use(express.json());
@@ -53,6 +53,7 @@ app.get("/", (req, res) => {
 
 app.use("/api/tasks", taskRoutes);
 app.use("/api/proposals", proposalRoutes);
+app.use("/api/payments", paymentRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
