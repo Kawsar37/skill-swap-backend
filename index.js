@@ -1,5 +1,6 @@
-const dns = require('node:dns');
-dns.setServers(['1.1.1.1', '1.0.0.1']); 
+const dns = require("node:dns");
+dns.setServers(["1.1.1.1", "1.0.0.1"]);
+const taskRoutes = require("./routes/taskRoutes");
 
 const express = require("express");
 const dontenv = require("dotenv");
@@ -31,17 +32,14 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     await client.connect();
-    const db = client.db("tech-bazaar");
 
- 
+    // 🚨 CRITICAL: It MUST be "global.db", NOT "const db"
+    global.db = client.db("skill-swap");
 
     await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!",
-    );
-  } finally {
-    // Ensures that the client will close when you finish/error
-    // await client.close();
+    console.log("✅ Successfully connected to MongoDB (skill-swap)!");
+  } catch (error) {
+    console.error("❌ MongoDB connection error:", error);
   }
 }
 run().catch(console.dir);
@@ -49,6 +47,8 @@ run().catch(console.dir);
 app.get("/", (req, res) => {
   res.send("Server is running fine!");
 });
+
+app.use("/api/tasks", taskRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
