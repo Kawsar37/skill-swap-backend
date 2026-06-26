@@ -1,6 +1,9 @@
 const dns = require("node:dns");
 dns.setServers(["1.1.1.1", "1.0.0.1"]);
+
 const taskRoutes = require("./routes/taskRoutes");
+const proposalRoutes = require("./routes/proposalRoutes");
+const paymentRoutes = require("./routes/paymentRoutes"); and app.use("/api/payments", paymentRoutes);
 
 const express = require("express");
 const dontenv = require("dotenv");
@@ -49,6 +52,7 @@ app.get("/", (req, res) => {
 });
 
 app.use("/api/tasks", taskRoutes);
+app.use("/api/proposals", proposalRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
