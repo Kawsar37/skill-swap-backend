@@ -124,4 +124,76 @@ router.post("/confirm-session", async (req, res) => {
   }
 });
 
+// ==========================================
+// GET /api/payments/freelancer/:email - Freelancer Earnings
+// ==========================================
+router.get("/freelancer/:email", async (req, res) => {
+  try {
+    const { email } = req.params;
+    const paymentsCollection = global.db.collection("payments");
+    const tasksCollection = global.db.collection("tasks");
+
+    const payments = await paymentsCollection
+      .find({ freelancer_email: email, payment_status: "paid" })
+      .sort({ paid_at: -1 })
+      .toArray();
+
+    // Enrich with Task Title and Client Email
+    const enriched = await Promise.all(
+      payments.map(async (p) => {
+        let task_title = "Unknown Task";
+        let client_email = p.client_email;
+        if (p.task_id && ObjectId.isValid(p.task_id)) {
+          const task = await tasksCollection.findOne({
+            _id: new ObjectId(p.task_id),
+          });
+          if (task) {
+            task_title = task.title;
+            client_email = task.client_email;
+          }
+        }
+        return { ...p, task_title, client_email };
+      }),
+    );
+
+    res.json(enriched);
+  } catch (error) {
+    console.error("❌ Error fetching freelancer earnings:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==========================================
+// GET /api/payments/admin - All Platform Transactions
+// ==========================================
+router.get("/admin", async (req, res) => {
+  try {
+    const paymentsCollection = global.db.collection("payments");
+    const tasksCollection = global.db.collection("tasks");
+
+    const payments = await paymentsCollection
+      .find({})
+      .sort({ paid_at: -1 })
+      .toArray();
+
+    const enriched = await Promise.all(
+      payments.map(async (p) => {
+        let task_title = "Unknown Task";
+        if (p.task_id && ObjectId.isValid(p.task_id)) {
+          const task = await tasksCollection.findOne({
+            _id: new ObjectId(p.task_id),
+          });
+          if (task) task_title = task.title;
+        }
+        return { ...p, task_title };
+      }),
+    );
+
+    res.json(enriched);
+  } catch (error) {
+    console.error("❌ Error fetching admin transactions:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

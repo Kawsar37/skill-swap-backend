@@ -7,6 +7,7 @@ const taskRoutes = require("./routes/taskRoutes");
 const proposalRoutes = require("./routes/proposalRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
 const adminRoutes = require("./routes/adminRoutes");
+const userRoutes = require("./routes/userRoutes");
 
 const express = require("express");
 const cors = require("cors");
@@ -56,6 +57,7 @@ app.use("/api/tasks", taskRoutes);
 app.use("/api/proposals", proposalRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/users", userRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
