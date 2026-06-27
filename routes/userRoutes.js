@@ -232,4 +232,84 @@ router.patch("/:email", async (req, res) => {
   }
 });
 
+// ==========================================
+// GET /api/freelancers/top - Top Freelancers for Homepage
+// ==========================================
+router.get("/freelancers/top", async (req, res) => {
+  try {
+    const usersCollection = global.db.collection("user");
+    const proposalsCollection = global.db.collection("proposals");
+    const reviewsCollection = global.db.collection("reviews");
+    const tasksCollection = global.db.collection("tasks");
+
+    const allFreelancers = await usersCollection
+      .find({ role: "freelancer", isBlocked: { $ne: true } })
+      .toArray();
+
+    const enriched = await Promise.all(
+      allFreelancers.map(async (f) => {
+        const acceptedProposals = await proposalsCollection
+          .find({ freelancer_email: f.email, status: "accepted" })
+          .toArray();
+
+        const taskIds = acceptedProposals.map((p) => p.task_id);
+        let completedJobs = 0;
+        if (taskIds.length > 0) {
+          completedJobs = await tasksCollection.countDocuments({
+            _id: { $in: taskIds.map((id) => new ObjectId(id)) },
+            status: "completed",
+          });
+        }
+
+        const reviews = await reviewsCollection
+          .find({ reviewee_email: f.email })
+          .toArray();
+        const avgRating =
+          reviews.length > 0
+            ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+            : 0;
+
+        // Safely parse skills
+        const skillsArray = Array.isArray(f.skills)
+          ? f.skills
+          : typeof f.skills === "string"
+            ? f.skills
+                .split(",")
+                .map((s) => s.trim())
+                .filter((s) => s)
+            : [];
+
+        return {
+          _id: f._id,
+          id: f._id.toString(),
+          email: f.email, // Needed for frontend routing
+          name: f.name,
+          fullName: f.name,
+          profileImage: f.image,
+          avatar: f.image,
+          skills: skillsArray,
+          averageRating: Math.round(avgRating * 10) / 10,
+          rating: Math.round(avgRating * 10) / 10,
+          completedJobs: completedJobs,
+          jobsCompleted: completedJobs,
+          isOnline: Math.random() > 0.5, // Randomly assign online status for UI demo
+        };
+      }),
+    );
+
+    // Sort by completed jobs desc, then rating desc
+    enriched.sort((a, b) => {
+      if (b.completedJobs !== a.completedJobs)
+        return b.completedJobs - a.completedJobs;
+      return b.averageRating - a.averageRating;
+    });
+
+    // Return top 8
+    res.json({ freelancers: enriched.slice(0, 8) });
+  } catch (error) {
+    console.error("❌ Error fetching top freelancers:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

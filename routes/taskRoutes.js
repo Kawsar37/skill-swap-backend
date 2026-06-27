@@ -3,7 +3,7 @@ const router = express.Router();
 const { ObjectId } = require("mongodb");
 
 // ==========================================
-// 1. POST /api/tasks - Create a new task (Client)
+// 1. POST /api/tasks - Create a new task
 // ==========================================
 router.post("/", async (req, res) => {
   try {
@@ -12,7 +12,6 @@ router.post("/", async (req, res) => {
     if (!title || !category || !budget || !deadline || !client_email) {
       return res.status(400).json({ error: "Missing required fields" });
     }
-
     const tasksCollection = global.db.collection("tasks");
     const newTask = {
       title,
@@ -25,7 +24,6 @@ router.post("/", async (req, res) => {
       deliverable_url: "",
       createdAt: new Date(),
     };
-
     const result = await tasksCollection.insertOne(newTask);
     res
       .status(201)
@@ -36,14 +34,13 @@ router.post("/", async (req, res) => {
 });
 
 // ==========================================
-// 2. GET /api/tasks - Browse Tasks (Public / Freelancer)
+// 2. GET /api/tasks - Browse Tasks
 // ==========================================
 router.get("/", async (req, res) => {
   try {
     const { search, category, page = 1, limit = 9 } = req.query;
     const tasksCollection = global.db.collection("tasks");
     const query = {};
-
     if (search) query.title = { $regex: search, $options: "i" };
     if (category && category !== "All" && category !== "")
       query.category = category;
@@ -71,10 +68,52 @@ router.get("/", async (req, res) => {
   }
 });
 
-// 🚨 CRITICAL: SPECIFIC ROUTES MUST COME BEFORE /:id 🚨
+// ==========================================
+// 3. GET /api/tasks/featured - Homepage Featured
+// ==========================================
+router.get("/featured", async (req, res) => {
+  try {
+    const tasksCollection = global.db.collection("tasks");
+    const tasks = await tasksCollection
+      .find({ status: "open" })
+      .sort({ createdAt: -1 })
+      .limit(6)
+      .toArray();
+    res.json({ tasks });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // ==========================================
-// 3. GET /api/tasks/client/:email - Get Client's Tasks
+// 4. GET /api/tasks/client-stats/:email - Client Stats
+// ==========================================
+router.get("/client-stats/:email", async (req, res) => {
+  try {
+    const { email } = req.params;
+    const tasksCollection = global.db.collection("tasks");
+    const paymentsCollection = global.db.collection("payments");
+
+    const tasks = await tasksCollection.find({ client_email: email }).toArray();
+    const totalTasks = tasks.length;
+    const openTasks = tasks.filter((t) => t.status === "open").length;
+    const inProgressTasks = tasks.filter(
+      (t) => t.status === "in_progress",
+    ).length;
+
+    const payments = await paymentsCollection
+      .find({ client_email: email, payment_status: "paid" })
+      .toArray();
+    const totalSpent = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+
+    res.json({ totalTasks, openTasks, inProgressTasks, totalSpent });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==========================================
+// 5. GET /api/tasks/client/:email - MY TASKS PAGE
 // ==========================================
 router.get("/client/:email", async (req, res) => {
   try {
@@ -91,7 +130,7 @@ router.get("/client/:email", async (req, res) => {
 });
 
 // ==========================================
-// 4. GET /api/tasks/freelancer-projects/:email - Get Active & Completed Projects
+// 6. GET /api/tasks/freelancer-projects/:email
 // ==========================================
 router.get("/freelancer-projects/:email", async (req, res) => {
   try {
@@ -110,13 +149,12 @@ router.get("/freelancer-projects/:email", async (req, res) => {
       .toArray();
     res.json(tasks);
   } catch (error) {
-    console.error("❌ Error fetching freelancer projects:", error);
     res.status(500).json({ error: error.message });
   }
 });
 
 // ==========================================
-// 5. PATCH /api/tasks/:id/submit-deliverable - Freelancer Submits Work
+// 7. PATCH /api/tasks/:id/submit-deliverable
 // ==========================================
 router.patch("/:id/submit-deliverable", async (req, res) => {
   try {
@@ -131,7 +169,6 @@ router.patch("/:id/submit-deliverable", async (req, res) => {
       { _id: new ObjectId(id) },
       { $set: { status: "completed", deliverable_url: deliverable_url } },
     );
-
     if (result.matchedCount === 0)
       return res.status(404).json({ error: "Task not found" });
     res.json({
@@ -143,7 +180,7 @@ router.patch("/:id/submit-deliverable", async (req, res) => {
 });
 
 // ==========================================
-// 6. PATCH /api/tasks/:id - Edit a Task (Client)
+// 8. PATCH /api/tasks/:id - Edit Task
 // ==========================================
 router.patch("/:id", async (req, res) => {
   try {
@@ -156,12 +193,12 @@ router.patch("/:id", async (req, res) => {
 
     const task = await tasksCollection.findOne({ _id: new ObjectId(id) });
     if (!task) return res.status(404).json({ error: "Task not found" });
-
-    if (task.status !== "open") {
-      return res.status(400).json({
-        error: "Cannot edit a task that is already in progress or completed.",
-      });
-    }
+    if (task.status !== "open")
+      return res
+        .status(400)
+        .json({
+          error: "Cannot edit a task that is already in progress or completed.",
+        });
 
     await tasksCollection.updateOne(
       { _id: new ObjectId(id) },
@@ -175,7 +212,6 @@ router.patch("/:id", async (req, res) => {
         },
       },
     );
-
     res.json({ message: "Task updated successfully" });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -183,7 +219,7 @@ router.patch("/:id", async (req, res) => {
 });
 
 // ==========================================
-// 7. DELETE /api/tasks/:id - Delete a Task (Client)
+// 9. DELETE /api/tasks/:id - Delete Task
 // ==========================================
 router.delete("/:id", async (req, res) => {
   try {
@@ -198,16 +234,16 @@ router.delete("/:id", async (req, res) => {
       task_id: id,
       status: "accepted",
     });
-    if (acceptedProposal) {
-      return res.status(400).json({
-        error:
-          "Cannot delete this task because a freelancer has already been hired.",
-      });
-    }
+    if (acceptedProposal)
+      return res
+        .status(400)
+        .json({
+          error:
+            "Cannot delete this task because a freelancer has already been hired.",
+        });
 
     await tasksCollection.deleteOne({ _id: new ObjectId(id) });
-    await proposalsCollection.deleteMany({ task_id: id }); // Clean up pending proposals
-
+    await proposalsCollection.deleteMany({ task_id: id });
     res.json({ message: "Task deleted successfully" });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -215,7 +251,7 @@ router.delete("/:id", async (req, res) => {
 });
 
 // ==========================================
-// 8. GET /api/tasks/:id - Get Single Task Details (MUST BE LAST AMONG GETs)
+// 10. GET /api/tasks/:id - Single Task (MUST BE LAST)
 // ==========================================
 router.get("/:id", async (req, res) => {
   try {
@@ -229,36 +265,6 @@ router.get("/:id", async (req, res) => {
     if (!task) return res.status(404).json({ error: "Task not found" });
 
     res.json(task);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ==========================================
-// GET /api/tasks/client-stats/:email - Client Dashboard Stats
-// ==========================================
-router.get("/client-stats/:email", async (req, res) => {
-  try {
-    const { email } = req.params;
-    const tasksCollection = global.db.collection("tasks");
-    const paymentsCollection = global.db.collection("payments");
-
-    // Get all tasks for this client
-    const tasks = await tasksCollection.find({ client_email: email }).toArray();
-
-    const totalTasks = tasks.length;
-    const openTasks = tasks.filter((t) => t.status === "open").length;
-    const inProgressTasks = tasks.filter(
-      (t) => t.status === "in_progress",
-    ).length;
-
-    // Calculate Total Spent from payments collection
-    const payments = await paymentsCollection
-      .find({ client_email: email, payment_status: "paid" })
-      .toArray();
-    const totalSpent = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
-
-    res.json({ totalTasks, openTasks, inProgressTasks, totalSpent });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
