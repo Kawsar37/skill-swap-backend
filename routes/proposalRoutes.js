@@ -2,9 +2,6 @@ const express = require("express");
 const router = express.Router();
 const { ObjectId } = require("mongodb");
 
-// ==========================================
-// POST /api/proposals - Submit a Proposal (Freelancer)
-// ==========================================
 router.post("/", async (req, res) => {
   try {
     const {
@@ -15,7 +12,6 @@ router.post("/", async (req, res) => {
       cover_note,
     } = req.body;
 
-    // 1. Validate required fields
     if (!task_id || !freelancer_email || !proposed_budget || !estimated_days) {
       return res.status(400).json({ error: "Missing required fields" });
     }
@@ -23,7 +19,6 @@ router.post("/", async (req, res) => {
     const proposalsCollection = global.db.collection("proposals");
     const tasksCollection = global.db.collection("tasks");
 
-    // 2. Check if task exists and is still open
     let task;
     try {
       task = await tasksCollection.findOne({ _id: new ObjectId(task_id) });
@@ -37,7 +32,6 @@ router.post("/", async (req, res) => {
         .status(400)
         .json({ error: "Task is no longer open for proposals" });
 
-    // 3. ASSIGNMENT RULE: Freelancer can only submit ONE proposal per task
     const existingProposal = await proposalsCollection.findOne({
       task_id: task_id,
       freelancer_email: freelancer_email,
@@ -49,14 +43,13 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // 4. Save the new proposal
     const newProposal = {
       task_id,
       freelancer_email,
       proposed_budget: parseFloat(proposed_budget),
       estimated_days: parseInt(estimated_days),
       cover_note: cover_note || "",
-      status: "pending", // Default state per assignment
+      status: "pending",
       submitted_at: new Date(),
     };
 
@@ -71,9 +64,6 @@ router.post("/", async (req, res) => {
   }
 });
 
-// ==========================================
-// GET /api/proposals - Get proposals (Enriched with Task Title)
-// ==========================================
 router.get("/", async (req, res) => {
   try {
     const { task_id, freelancer_email } = req.query;
@@ -89,12 +79,11 @@ router.get("/", async (req, res) => {
       .sort({ submitted_at: -1 })
       .toArray();
 
-    // 🚨 ENRICHMENT: Fetch the Task Title and Client Email for each proposal
     const enrichedProposals = await Promise.all(
       proposals.map(async (proposal) => {
         const task = await tasksCollection.findOne(
           { _id: new ObjectId(proposal.task_id) },
-          { projection: { title: 1, status: 1, client_email: 1, budget: 1 } }, // Added client_email and budget
+          { projection: { title: 1, status: 1, client_email: 1, budget: 1 } },
         );
         return {
           ...proposal,
@@ -113,9 +102,6 @@ router.get("/", async (req, res) => {
   }
 });
 
-// ==========================================
-// GET /api/proposals - (UPDATED to support client_email)
-// ==========================================
 router.get("/", async (req, res) => {
   try {
     const { task_id, freelancer_email, client_email } = req.query;
@@ -126,7 +112,6 @@ router.get("/", async (req, res) => {
     if (task_id) query.task_id = task_id;
     if (freelancer_email) query.freelancer_email = freelancer_email;
 
-    // 🚨 NEW: If client_email is passed, find all their tasks, then find proposals for those tasks
     if (client_email) {
       const clientTasks = await tasksCollection
         .find({ client_email })
@@ -163,9 +148,6 @@ router.get("/", async (req, res) => {
   }
 });
 
-// ==========================================
-// PATCH /api/proposals/:id/reject - Reject a Proposal (Client)
-// ==========================================
 router.patch("/:id/reject", async (req, res) => {
   try {
     const { id } = req.params;
@@ -191,16 +173,12 @@ router.patch("/:id/reject", async (req, res) => {
   }
 });
 
-// ==========================================
-// GET /api/proposals/freelancer-stats/:email - Freelancer Dashboard Stats
-// ==========================================
 router.get("/freelancer-stats/:email", async (req, res) => {
   try {
     const { email } = req.params;
     const proposalsCollection = global.db.collection("proposals");
     const paymentsCollection = global.db.collection("payments");
 
-    // Get all proposals for this freelancer
     const proposals = await proposalsCollection
       .find({ freelancer_email: email })
       .toArray();
@@ -213,7 +191,6 @@ router.get("/freelancer-stats/:email", async (req, res) => {
       (p) => p.status === "accepted",
     ).length;
 
-    // Calculate Total Earnings from payments collection
     const payments = await paymentsCollection
       .find({ freelancer_email: email, payment_status: "paid" })
       .toArray();

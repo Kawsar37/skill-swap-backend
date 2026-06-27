@@ -1,12 +1,7 @@
 const express = require("express");
 const router = express.Router();
-const { ObjectId } = require("mongodb"); // 🚨 CRITICAL: Added ObjectId import
+const { ObjectId } = require("mongodb");
 
-// 🚨 CRITICAL: SPECIFIC ROUTES MUST COME BEFORE DYNAMIC /:email ROUTES
-
-// ==========================================
-// 1. GET /api/users/freelancers - Browse All Freelancers with Stats
-// ==========================================
 router.get("/freelancers", async (req, res) => {
   try {
     const { search, skill, sort } = req.query;
@@ -96,9 +91,6 @@ router.get("/freelancers", async (req, res) => {
   }
 });
 
-// ==========================================
-// 2. GET /api/users/:email/full-profile - Get Complete Freelancer Profile
-// ==========================================
 router.get("/:email/full-profile", async (req, res) => {
   try {
     const { email } = req.params;
@@ -177,9 +169,6 @@ router.get("/:email/full-profile", async (req, res) => {
   }
 });
 
-// ==========================================
-// 3. GET /api/users/:email - Get User Profile (DYNAMIC ROUTE LAST)
-// ==========================================
 router.get("/:email", async (req, res) => {
   try {
     const { email } = req.params;
@@ -194,9 +183,6 @@ router.get("/:email", async (req, res) => {
   }
 });
 
-// ==========================================
-// 4. PATCH /api/users/:email - Update Freelancer Profile
-// ==========================================
 router.patch("/:email", async (req, res) => {
   try {
     const { email } = req.params;
@@ -232,9 +218,6 @@ router.patch("/:email", async (req, res) => {
   }
 });
 
-// ==========================================
-// GET /api/freelancers/top - Top Freelancers for Homepage
-// ==========================================
 router.get("/freelancers/top", async (req, res) => {
   try {
     const usersCollection = global.db.collection("user");
@@ -269,7 +252,6 @@ router.get("/freelancers/top", async (req, res) => {
             ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
             : 0;
 
-        // Safely parse skills
         const skillsArray = Array.isArray(f.skills)
           ? f.skills
           : typeof f.skills === "string"
@@ -282,7 +264,7 @@ router.get("/freelancers/top", async (req, res) => {
         return {
           _id: f._id,
           id: f._id.toString(),
-          email: f.email, // Needed for frontend routing
+          email: f.email,
           name: f.name,
           fullName: f.name,
           profileImage: f.image,
@@ -292,19 +274,17 @@ router.get("/freelancers/top", async (req, res) => {
           rating: Math.round(avgRating * 10) / 10,
           completedJobs: completedJobs,
           jobsCompleted: completedJobs,
-          isOnline: Math.random() > 0.5, // Randomly assign online status for UI demo
+          isOnline: Math.random() > 0.5,
         };
       }),
     );
 
-    // Sort by completed jobs desc, then rating desc
     enriched.sort((a, b) => {
       if (b.completedJobs !== a.completedJobs)
         return b.completedJobs - a.completedJobs;
       return b.averageRating - a.averageRating;
     });
 
-    // Return top 8
     res.json({ freelancers: enriched.slice(0, 8) });
   } catch (error) {
     console.error("❌ Error fetching top freelancers:", error);

@@ -2,12 +2,9 @@ const express = require("express");
 const router = express.Router();
 const { ObjectId } = require("mongodb");
 
-// ==========================================
-// GET /api/admin/stats - Dashboard Statistics
-// ==========================================
 router.get("/stats", async (req, res) => {
   try {
-    const usersCollection = global.db.collection("user"); // Better Auth default collection name
+    const usersCollection = global.db.collection("user");
     const tasksCollection = global.db.collection("tasks");
     const paymentsCollection = global.db.collection("payments");
 
@@ -17,7 +14,6 @@ router.get("/stats", async (req, res) => {
       status: "in_progress",
     });
 
-    // Calculate Total Revenue
     const revenueAggregation = await paymentsCollection
       .aggregate([
         { $match: { payment_status: "paid" } },
@@ -40,13 +36,10 @@ router.get("/stats", async (req, res) => {
   }
 });
 
-// ==========================================
-// GET /api/admin/users - List All Users
-// ==========================================
 router.get("/users", async (req, res) => {
   try {
     const usersCollection = global.db.collection("user");
-    // Fetch users but exclude sensitive fields like password hashes if they exist
+
     const users = await usersCollection
       .find({})
       .project({
@@ -64,9 +57,6 @@ router.get("/users", async (req, res) => {
   }
 });
 
-// ==========================================
-// PATCH /api/admin/users/:id/toggle-block - Block/Unblock User
-// ==========================================
 router.patch("/users/:id/toggle-block", async (req, res) => {
   try {
     const { id } = req.params;
@@ -78,12 +68,11 @@ router.patch("/users/:id/toggle-block", async (req, res) => {
     const user = await usersCollection.findOne({ _id: new ObjectId(id) });
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    // Prevent Admin from blocking themselves
     if (user.role === "admin") {
       return res.status(403).json({ error: "Cannot block an admin account." });
     }
 
-    const newStatus = !user.isBlocked; // Toggle current status
+    const newStatus = !user.isBlocked;
 
     await usersCollection.updateOne(
       { _id: new ObjectId(id) },
@@ -99,9 +88,6 @@ router.patch("/users/:id/toggle-block", async (req, res) => {
   }
 });
 
-// ==========================================
-// PATCH /api/tasks/:id - Edit a Task (Client)
-// ==========================================
 router.patch("/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -114,7 +100,6 @@ router.patch("/:id", async (req, res) => {
     const task = await tasksCollection.findOne({ _id: new ObjectId(id) });
     if (!task) return res.status(404).json({ error: "Task not found" });
 
-    // Assignment Rule: Can only edit if status is "open"
     if (task.status !== "open") {
       return res.status(400).json({
         error: "Cannot edit a task that is already in progress or completed.",
@@ -140,9 +125,6 @@ router.patch("/:id", async (req, res) => {
   }
 });
 
-// ==========================================
-// DELETE /api/tasks/:id - Delete a Task (Client)
-// ==========================================
 router.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -152,7 +134,6 @@ router.delete("/:id", async (req, res) => {
     if (!ObjectId.isValid(id))
       return res.status(400).json({ error: "Invalid ID" });
 
-    // Assignment Rule: Can only delete if NO proposal has been accepted
     const acceptedProposal = await proposalsCollection.findOne({
       task_id: id,
       status: "accepted",
@@ -164,10 +145,8 @@ router.delete("/:id", async (req, res) => {
       });
     }
 
-    // Delete the task
     await tasksCollection.deleteOne({ _id: new ObjectId(id) });
 
-    // Optional: Clean up pending proposals for this deleted task
     await proposalsCollection.deleteMany({ task_id: id });
 
     res.json({ message: "Task deleted successfully" });
@@ -176,9 +155,6 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
-// ==========================================
-// GET /api/tasks/client/:email - Get Client's Tasks
-// ==========================================
 router.get("/client/:email", async (req, res) => {
   try {
     const { email } = req.params;
@@ -193,9 +169,6 @@ router.get("/client/:email", async (req, res) => {
   }
 });
 
-// ==========================================
-// GET /api/admin/tasks - List All Tasks (Admin)
-// ==========================================
 router.get("/tasks", async (req, res) => {
   try {
     const tasksCollection = global.db.collection("tasks");
@@ -209,9 +182,6 @@ router.get("/tasks", async (req, res) => {
   }
 });
 
-// ==========================================
-// DELETE /api/admin/tasks/:id - Admin Delete Task
-// ==========================================
 router.delete("/tasks/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -221,9 +191,8 @@ router.delete("/tasks/:id", async (req, res) => {
     if (!ObjectId.isValid(id))
       return res.status(400).json({ error: "Invalid ID" });
 
-    // Delete the task
     await tasksCollection.deleteOne({ _id: new ObjectId(id) });
-    // Clean up any proposals attached to this task
+
     await proposalsCollection.deleteMany({ task_id: id });
 
     res.json({ message: "Task deleted by Admin successfully." });
@@ -232,15 +201,11 @@ router.delete("/tasks/:id", async (req, res) => {
   }
 });
 
-// ==========================================
-// GET /api/admin/analytics - Chart Data & Recent Payments
-// ==========================================
 router.get("/analytics", async (req, res) => {
   try {
     const tasksCollection = global.db.collection("tasks");
     const paymentsCollection = global.db.collection("payments");
 
-    // 1. Task creation over time (last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -249,7 +214,6 @@ router.get("/analytics", async (req, res) => {
       .sort({ createdAt: 1 })
       .toArray();
 
-    // Group tasks by date
     const tasksByDate = {};
     recentTasks.forEach((task) => {
       const date = new Date(task.createdAt).toLocaleDateString("en-US", {
@@ -266,7 +230,6 @@ router.get("/analytics", async (req, res) => {
       }),
     );
 
-    // 2. Task distribution by category
     const categoryDistribution = await tasksCollection
       .aggregate([
         { $group: { _id: "$category", count: { $sum: 1 } } },
@@ -279,7 +242,6 @@ router.get("/analytics", async (req, res) => {
       value: cat.count,
     }));
 
-    // 3. Task status distribution
     const statusDistribution = await tasksCollection
       .aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }])
       .toArray();
@@ -289,14 +251,12 @@ router.get("/analytics", async (req, res) => {
       value: status.count,
     }));
 
-    // 4. Recent payments (last 10)
     const recentPayments = await paymentsCollection
       .find({})
       .sort({ paid_at: -1 })
       .limit(10)
       .toArray();
 
-    // Enrich payments with task titles
     const enrichedPayments = await Promise.all(
       recentPayments.map(async (payment) => {
         let task_title = "Unknown Task";

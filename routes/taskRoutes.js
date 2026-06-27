@@ -2,9 +2,6 @@ const express = require("express");
 const router = express.Router();
 const { ObjectId } = require("mongodb");
 
-// ==========================================
-// 1. POST /api/tasks - Create a new task
-// ==========================================
 router.post("/", async (req, res) => {
   try {
     const { title, category, description, budget, deadline, client_email } =
@@ -33,9 +30,6 @@ router.post("/", async (req, res) => {
   }
 });
 
-// ==========================================
-// 2. GET /api/tasks - Browse Tasks
-// ==========================================
 router.get("/", async (req, res) => {
   try {
     const { search, category, page = 1, limit = 9 } = req.query;
@@ -68,9 +62,6 @@ router.get("/", async (req, res) => {
   }
 });
 
-// ==========================================
-// 3. GET /api/tasks/featured - Homepage Featured
-// ==========================================
 router.get("/featured", async (req, res) => {
   try {
     const tasksCollection = global.db.collection("tasks");
@@ -85,9 +76,6 @@ router.get("/featured", async (req, res) => {
   }
 });
 
-// ==========================================
-// 4. GET /api/tasks/client-stats/:email - Client Stats
-// ==========================================
 router.get("/client-stats/:email", async (req, res) => {
   try {
     const { email } = req.params;
@@ -112,9 +100,6 @@ router.get("/client-stats/:email", async (req, res) => {
   }
 });
 
-// ==========================================
-// 5. GET /api/tasks/client/:email - MY TASKS PAGE
-// ==========================================
 router.get("/client/:email", async (req, res) => {
   try {
     const { email } = req.params;
@@ -129,9 +114,6 @@ router.get("/client/:email", async (req, res) => {
   }
 });
 
-// ==========================================
-// 6. GET /api/tasks/freelancer-projects/:email
-// ==========================================
 router.get("/freelancer-projects/:email", async (req, res) => {
   try {
     const { email } = req.params;
@@ -153,9 +135,6 @@ router.get("/freelancer-projects/:email", async (req, res) => {
   }
 });
 
-// ==========================================
-// 7. PATCH /api/tasks/:id/submit-deliverable
-// ==========================================
 router.patch("/:id/submit-deliverable", async (req, res) => {
   try {
     const { id } = req.params;
@@ -179,9 +158,6 @@ router.patch("/:id/submit-deliverable", async (req, res) => {
   }
 });
 
-// ==========================================
-// 8. PATCH /api/tasks/:id - Edit Task
-// ==========================================
 router.patch("/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -194,11 +170,9 @@ router.patch("/:id", async (req, res) => {
     const task = await tasksCollection.findOne({ _id: new ObjectId(id) });
     if (!task) return res.status(404).json({ error: "Task not found" });
     if (task.status !== "open")
-      return res
-        .status(400)
-        .json({
-          error: "Cannot edit a task that is already in progress or completed.",
-        });
+      return res.status(400).json({
+        error: "Cannot edit a task that is already in progress or completed.",
+      });
 
     await tasksCollection.updateOne(
       { _id: new ObjectId(id) },
@@ -218,9 +192,6 @@ router.patch("/:id", async (req, res) => {
   }
 });
 
-// ==========================================
-// 9. DELETE /api/tasks/:id - Delete Task
-// ==========================================
 router.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -235,12 +206,10 @@ router.delete("/:id", async (req, res) => {
       status: "accepted",
     });
     if (acceptedProposal)
-      return res
-        .status(400)
-        .json({
-          error:
-            "Cannot delete this task because a freelancer has already been hired.",
-        });
+      return res.status(400).json({
+        error:
+          "Cannot delete this task because a freelancer has already been hired.",
+      });
 
     await tasksCollection.deleteOne({ _id: new ObjectId(id) });
     await proposalsCollection.deleteMany({ task_id: id });
@@ -250,9 +219,6 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
-// ==========================================
-// 10. GET /api/tasks/:id - Single Task (MUST BE LAST)
-// ==========================================
 router.get("/:id", async (req, res) => {
   try {
     const tasksCollection = global.db.collection("tasks");
