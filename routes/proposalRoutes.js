@@ -191,4 +191,43 @@ router.patch("/:id/reject", async (req, res) => {
   }
 });
 
+// ==========================================
+// GET /api/proposals/freelancer-stats/:email - Freelancer Dashboard Stats
+// ==========================================
+router.get("/freelancer-stats/:email", async (req, res) => {
+  try {
+    const { email } = req.params;
+    const proposalsCollection = global.db.collection("proposals");
+    const paymentsCollection = global.db.collection("payments");
+
+    // Get all proposals for this freelancer
+    const proposals = await proposalsCollection
+      .find({ freelancer_email: email })
+      .toArray();
+
+    const totalProposals = proposals.length;
+    const pendingProposals = proposals.filter(
+      (p) => p.status === "pending",
+    ).length;
+    const acceptedProposals = proposals.filter(
+      (p) => p.status === "accepted",
+    ).length;
+
+    // Calculate Total Earnings from payments collection
+    const payments = await paymentsCollection
+      .find({ freelancer_email: email, payment_status: "paid" })
+      .toArray();
+    const totalEarnings = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+
+    res.json({
+      totalProposals,
+      pendingProposals,
+      acceptedProposals,
+      totalEarnings,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

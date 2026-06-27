@@ -158,11 +158,9 @@ router.patch("/:id", async (req, res) => {
     if (!task) return res.status(404).json({ error: "Task not found" });
 
     if (task.status !== "open") {
-      return res
-        .status(400)
-        .json({
-          error: "Cannot edit a task that is already in progress or completed.",
-        });
+      return res.status(400).json({
+        error: "Cannot edit a task that is already in progress or completed.",
+      });
     }
 
     await tasksCollection.updateOne(
@@ -201,12 +199,10 @@ router.delete("/:id", async (req, res) => {
       status: "accepted",
     });
     if (acceptedProposal) {
-      return res
-        .status(400)
-        .json({
-          error:
-            "Cannot delete this task because a freelancer has already been hired.",
-        });
+      return res.status(400).json({
+        error:
+          "Cannot delete this task because a freelancer has already been hired.",
+      });
     }
 
     await tasksCollection.deleteOne({ _id: new ObjectId(id) });
@@ -233,6 +229,36 @@ router.get("/:id", async (req, res) => {
     if (!task) return res.status(404).json({ error: "Task not found" });
 
     res.json(task);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==========================================
+// GET /api/tasks/client-stats/:email - Client Dashboard Stats
+// ==========================================
+router.get("/client-stats/:email", async (req, res) => {
+  try {
+    const { email } = req.params;
+    const tasksCollection = global.db.collection("tasks");
+    const paymentsCollection = global.db.collection("payments");
+
+    // Get all tasks for this client
+    const tasks = await tasksCollection.find({ client_email: email }).toArray();
+
+    const totalTasks = tasks.length;
+    const openTasks = tasks.filter((t) => t.status === "open").length;
+    const inProgressTasks = tasks.filter(
+      (t) => t.status === "in_progress",
+    ).length;
+
+    // Calculate Total Spent from payments collection
+    const payments = await paymentsCollection
+      .find({ client_email: email, payment_status: "paid" })
+      .toArray();
+    const totalSpent = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+
+    res.json({ totalTasks, openTasks, inProgressTasks, totalSpent });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

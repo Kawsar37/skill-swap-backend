@@ -232,4 +232,94 @@ router.delete("/tasks/:id", async (req, res) => {
   }
 });
 
+// ==========================================
+// GET /api/admin/analytics - Chart Data & Recent Payments
+// ==========================================
+router.get("/analytics", async (req, res) => {
+  try {
+    const tasksCollection = global.db.collection("tasks");
+    const paymentsCollection = global.db.collection("payments");
+
+    // 1. Task creation over time (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const recentTasks = await tasksCollection
+      .find({ createdAt: { $gte: thirtyDaysAgo } })
+      .sort({ createdAt: 1 })
+      .toArray();
+
+    // Group tasks by date
+    const tasksByDate = {};
+    recentTasks.forEach((task) => {
+      const date = new Date(task.createdAt).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      });
+      tasksByDate[date] = (tasksByDate[date] || 0) + 1;
+    });
+
+    const taskCreationChart = Object.entries(tasksByDate).map(
+      ([date, count]) => ({
+        date,
+        tasks: count,
+      }),
+    );
+
+    // 2. Task distribution by category
+    const categoryDistribution = await tasksCollection
+      .aggregate([
+        { $group: { _id: "$category", count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+      ])
+      .toArray();
+
+    const categoryChart = categoryDistribution.map((cat) => ({
+      name: cat._id || "Unknown",
+      value: cat.count,
+    }));
+
+    // 3. Task status distribution
+    const statusDistribution = await tasksCollection
+      .aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }])
+      .toArray();
+
+    const statusChart = statusDistribution.map((status) => ({
+      name: status._id || "Unknown",
+      value: status.count,
+    }));
+
+    // 4. Recent payments (last 10)
+    const recentPayments = await paymentsCollection
+      .find({})
+      .sort({ paid_at: -1 })
+      .limit(10)
+      .toArray();
+
+    // Enrich payments with task titles
+    const enrichedPayments = await Promise.all(
+      recentPayments.map(async (payment) => {
+        let task_title = "Unknown Task";
+        if (payment.task_id && ObjectId.isValid(payment.task_id)) {
+          const task = await tasksCollection.findOne({
+            _id: new ObjectId(payment.task_id),
+          });
+          if (task) task_title = task.title;
+        }
+        return { ...payment, task_title };
+      }),
+    );
+
+    res.json({
+      taskCreationChart,
+      categoryChart,
+      statusChart,
+      recentPayments: enrichedPayments,
+    });
+  } catch (error) {
+    console.error("❌ Error fetching admin analytics:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;
